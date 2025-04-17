@@ -1,13 +1,17 @@
-import random
+import secrets
 from django.core.cache import cache
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def generate_otp():
-    return str(random.randint(100000, 999999))
+    return ''.join(secrets.choice('0123456789') for _ in range(6))
 
 
 def set_otp_cache(phone_number, code, ttl=120):
     cache.set(f"otp:{phone_number}", code, timeout=ttl)
+    logger.info(f"OTP set for {phone_number}")
 
 
 def get_otp_cache(phone_number):
@@ -16,42 +20,22 @@ def get_otp_cache(phone_number):
 
 def delete_otp_cache(phone_number):
     cache.delete(f"otp:{phone_number}")
+    logger.info(f"OTP cache cleared for {phone_number}")
 
 
 def get_client_ip(request):
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    return (
-        x_forwarded_for.split(",")[0]
-        if x_forwarded_for
-        else request.META.get("REMOTE_ADDR")
-    )
+    ip = x_forwarded_for.split(",")[0] if x_forwarded_for else request.META.get("REMOTE_ADDR")
+    logger.debug(f"Client IP: {ip}")
+    return ip
 
 
-def is_blocked_by_ip(ip, scope="sms", limit=3):
-    key = f"{scope}-fail:{ip}"
-    return cache.get(key, 0) >= limit
-
-
-def register_ip_failure(ip, scope="sms", limit=3, block_duration=3600):
-    key = f"{scope}-fail:{ip}"
-    attempts = cache.get(key, 0) + 1
-    cache.set(key, attempts, timeout=block_duration if attempts >= limit else 300)
-
-
-def reset_ip_failure(ip, scope="sms"):
-    cache.delete(f"{scope}-fail:{ip}")
-
-
-def is_blocked_by_phone_and_ip(phone, ip, scope="otp", limit=3):
-    key = f"{scope}-fail:{phone}:{ip}"
-    return cache.get(key, 0) >= limit
-
-
-def register_phone_ip_failure(phone, ip, scope="otp", limit=3, block_duration=3600):
-    key = f"{scope}-fail:{phone}:{ip}"
-    attempts = cache.get(key, 0) + 1
-    cache.set(key, attempts, timeout=block_duration if attempts >= limit else 300)
-
-
-def reset_phone_ip_failure(phone, ip, scope="otp"):
-    cache.delete(f"{scope}-fail:{phone}:{ip}")
+def send_sms(phone, code):
+    try:
+        # sms_service(phone, code) 
+        print(f"OTP code for {phone}: {code}")
+        logger.info(f"SMS sent to {phone}: {code}")
+        return True
+    except Exception as e:
+        logger.error(f"SMS sending failed for {phone}: {e}")
+        return False
